@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Informasi Gudang Bahan Kering</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: { brand: { 50: '#f0fdfa', 100: '#ccfbf1', 500: '#14b8a6', 600: '#0d9488', 900: '#134e4a' } },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & Font Awesome -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js & jsPDF -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #020617; color: #f8fafc; }
+        .glass-card { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); box-sizing: border-box; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+        .glass-card-hover { transition: all 0.25s ease-in-out; }
+        .glass-card-hover:hover { transform: translateY(-2px); border-color: rgba(20, 184, 166, 0.4); box-shadow: 0 12px 35px -10px rgba(20, 184, 166, 0.2); }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        .pulse-danger { animation: pulse-border 2s infinite; }
+        @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+    </style>
+</head>
+<body class="min-h-screen text-slate-100 bg-slate-950 antialiased selection:bg-teal-500 selection:text-white">
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <div class="min-h-screen flex flex-col">
+        <header class="glass-card sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16 gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-teal-500 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-teal-500/20 shrink-0">
+                            <i class="fa-solid fa-boxes-packing"></i>
+                        </div>
+                        <div>
+                            <h1 class="font-black text-base sm:text-lg text-white leading-tight flex items-center gap-2">
+                                GUDANG BAHAN KERING
+                                <span class="hidden md:inline-block text-[10px] font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded-full">Feed Ingredients</span>
+                            </h1>
+                            <p class="text-xs text-slate-400 flex items-center gap-2">
+                                <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                Live Dashboard Monitoring
+                            </p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="downloadCSVTemplate()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center gap-1.5">
+                            <i class="fa-solid fa-download text-sky-400"></i><span class="hidden sm:inline">CSV Template</span>
+                        </button>
+                        <button onclick="exportPDF()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-lg shadow-rose-900/30 transition-all flex items-center gap-1.5">
+                            <i class="fa-solid fa-file-pdf"></i><span>Download PDF</span>
+                        </button>
+                        <button onclick="refreshData()" title="Refresh Data" class="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/60 transition-all">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-slate-800">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">Total Item Bahan Baku</p>
+                        <h3 class="text-2xl font-black text-white mt-1" id="kpiTotalItems">0 <span class="text-xs font-normal text-slate-400">Items</span></h3>
+                        <p class="text-[10px] text-teal-400 mt-1"><i class="fa-solid fa-check-circle mr-1"></i> Terdaftar di Gudang</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700/80 text-teal-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-cubes"></i></div>
+                </div>
+                <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-slate-800">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">Total Sisa Stok Gudang</p>
+                        <h3 class="text-2xl font-black text-white mt-1" id="kpiTotalStock">0 <span class="text-xs font-normal text-slate-400">Kg</span></h3>
+                        <p class="text-[10px] text-slate-400 mt-1"><span id="kpiTotalInStock">0</span> In / <span id="kpiTotalOutStock">0</span> Out</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700/80 text-blue-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-weight-hanging"></i></div>
+                </div>
+                <div id="cardCriticalAlert" class="glass-card p-4 rounded-2xl flex items-center justify-between border border-slate-800 transition-all duration-300">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">Status Stok Alert</p>
+                        <h3 class="text-2xl font-black text-red-400 mt-1" id="kpiCriticalCount">0 <span class="text-xs font-normal text-slate-400">Items</span></h3>
+                        <p class="text-[10px] text-red-400/90 mt-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Perlu Perhatian</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-red-950/50 border border-red-500/30 text-red-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-circle-exclamation"></i></div>
+                </div>
+                <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-slate-800">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400">Suhu & Kelembapan</p>
+                        <h3 class="text-2xl font-black text-emerald-400 mt-1">24°C <span class="text-xs font-medium text-slate-400">/ 55% RH</span></h3>
+                        <p class="text-[10px] text-emerald-400 mt-1"><i class="fa-solid fa-shield-halved mr-1"></i> Kondisi Kering Optimal</p>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700/80 text-emerald-400 flex items-center justify-center text-xl shrink-0"><i class="fa-solid fa-temperature-low"></i></div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="glass-card p-5 rounded-2xl border border-slate-800">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-chart-pie text-teal-400"></i> Distribusi Status Stok</h3>
+                    </div>
+                    <div class="h-52 relative"><canvas id="statusDonutChart"></canvas></div>
+                </div>
+                <div class="glass-card p-5 rounded-2xl border border-slate-800 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-chart-column text-teal-400"></i> Perbandingan Sisa Stok Per Item</h3>
+                    </div>
+                    <div class="h-52"><canvas id="volumeBarChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Filter -->
+            <div class="glass-card p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="relative w-full md:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="handleSearch()" placeholder="Cari nama bahan baku..." class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-teal-500 transition-all">
+                </div>
+                <div class="flex flex-wrap items-center justify-between w-full md:w-auto gap-3">
+                    <select id="categoryFilter" onchange="handleFilter()" class="bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500">
+                        <option value="ALL">Semua Kategori</option>
+                        <option value="Bahan Kering">Bahan Kering</option>
+                        <option value="Bahan Makro">Bahan Makro</option>
+                        <option value="Mineral & Aditif">Mineral & Aditif</option>
+                        <option value="Premix Nutricell">Premix Nutricell</option>
+                        <option value="Cairan">Cairan</option>
+                    </select>
+                    <select id="statusFilter" onchange="handleFilter()" class="bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-teal-500">
+                        <option value="ALL">Semua Status</option>
+                        <option value="KOSONG">Stok Kosong</option>
+                        <option value="KRITIS">Stok Kritis</option>
+                        <option value="AMAN">Stok Aman</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tabel Data -->
+            <div class="glass-card rounded-2xl overflow-hidden border border-slate-800">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-semibold">
+                                <th class="p-3.5 pl-5">#</th>
+                                <th class="p-3.5">Nama Item Bahan Baku</th>
+                                <th class="p-3.5">Kategori</th>
+                                <th class="p-3.5 text-right">InStock</th>
+                                <th class="p-3.5 text-right">OutStock</th>
+                                <th class="p-3.5 text-right">Sisa Stok</th>
+                                <th class="p-3.5 text-center">Batas Min</th>
+                                <th class="p-3.5 text-center pr-5">Status Stok</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-800/60 text-slate-200">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Riwayat Transaksi -->
+    <div id="historyModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden items-center justify-center p-4">
+        <div class="glass-card w-full max-w-3xl rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <div class="flex items-center gap-3 min-w-0 pr-2">
+                    <div class="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/30 text-teal-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-clock-rotate-left"></i></div>
+                    <div class="min-w-0">
+                        <h3 id="modalItemTitle" class="font-bold text-base text-white truncate">Nama Item</h3>
+                        <p id="modalItemCategory" class="text-xs text-slate-400 truncate">Kategori</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
+                    <span id="modalItemBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">STOK AMAN</span>
+                    <button onclick="closeHistoryModal()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+            </div>
+
+            <div class="p-5 space-y-4 overflow-y-auto flex-1">
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+                        <p class="text-[10px] text-slate-400">Total Kedatangan (IN)</p>
+                        <p id="modalItemIn" class="text-sm font-bold text-emerald-400 mt-0.5">0 Kg</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+                        <p class="text-[10px] text-slate-400">Total Pengambilan (OUT)</p>
+                        <p id="modalItemOut" class="text-sm font-bold text-amber-400 mt-0.5">0 Kg</p>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+                        <p class="text-[10px] text-slate-400">Sisa Stok Fisik</p>
+                        <p id="modalItemStock" class="text-sm font-bold text-teal-400 mt-0.5">0 Kg</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2 flex-wrap gap-2">
+                    <h4 class="text-xs font-bold text-slate-300 flex items-center gap-2"><i class="fa-solid fa-list-ol text-teal-400"></i> Riwayat Log Transaksi (Terbaru)</h4>
+                    <div class="flex gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800">
+                        <button id="btnFilterAll" onclick="filterHistory('ALL')" class="px-3 py-1 rounded-md text-xs font-semibold bg-teal-600 text-white">Semua</button>
+                        <button id="btnFilterIn" onclick="filterHistory('IN')" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white">Kedatangan (IN)</button>
+                        <button id="btnFilterOut" onclick="filterHistory('OUT')" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white">Pengambilan (OUT)</button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/50">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/90 text-slate-400 border-b border-slate-800 font-semibold">
+                            <tr>
+                                <th class="p-3">Tanggal</th>
+                                <th class="p-3">Transaksi</th>
+                                <th class="p-3 text-right">Jumlah</th>
+                                <th class="p-3">Dokumen</th>
+                                <th class="p-3">Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalHistoryTableBody" class="divide-y divide-slate-800/60 text-slate-300 font-mono">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-800 bg-slate-900/50 flex justify-end">
+                <button onclick="closeHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // KONFIGURASI API 
+        // =========================================================================
+        const GOOGLE_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzAicg4SHZ9Q-VmhjWsIjCBY14dJ_Tv-cYcYQc-KHe6F0ZWZ7hv5b1Do0swfwFrPFb8/exec"; // <-- Masukkan URL Aplikasi Web di sini
+
+        let stockItems = [];
+        let initialItems = [];
+        let donutChartInstance = null;
+        let barChartInstance = null;
+        let mockHistoryData = [];
+
+        window.onload = function() {
+            initCharts();
+            autoConnectSheet();
+        };
+
+        function autoConnectSheet() {
+            if (GOOGLE_WEB_APP_URL && GOOGLE_WEB_APP_URL.trim() !== "") {
+                fetchSheetData(GOOGLE_WEB_APP_URL.trim());
+            } else {
+                showToast('URL Google Web App belum diisi. Silakan edit file HTML.', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-950 border-emerald-500/50 text-emerald-200' : 'bg-red-950 border-red-500/50 text-red-200';
+            const icon = type === 'success' ? 'fa-circle-check text-emerald-400' : 'fa-circle-exclamation text-red-400';
+            toast.className = 'glass-card p-3 rounded-xl border shadow-xl flex items-center gap-3 text-xs transform transition-all duration-300 translate-y-2 pointer-events-auto ' + bgClass;
+            toast.innerHTML = '<i class="fa-solid ' + icon + ' text-base"></i><span>' + message + '</span>';
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-10px]');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function updateDashboard() {
+            let totalStockSum = 0, totalInSum = 0, totalOutSum = 0, criticalCount = 0;
+
+            stockItems.forEach(item => {
+                const curStock = item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock);
+                totalStockSum += curStock;
+                totalInSum += item.instock;
+                totalOutSum += item.outstock;
+
+                if (curStock <= item.minstock || item.highlight) criticalCount++;
+            });
+
+            document.getElementById('kpiTotalItems').innerText = stockItems.length + ' Items';
+            document.getElementById('kpiTotalStock').innerText = totalStockSum.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' Kg';
+            document.getElementById('kpiTotalInStock').innerText = totalInSum.toLocaleString('id-ID') + ' Kg';
+            document.getElementById('kpiTotalOutStock').innerText = totalOutSum.toLocaleString('id-ID') + ' Kg';
+            document.getElementById('kpiCriticalCount').innerText = criticalCount + ' Items';
+
+            const critCard = document.getElementById('cardCriticalAlert');
+            if (criticalCount > 0) {
+                critCard.className = 'glass-card p-4 rounded-2xl flex items-center justify-between relative overflow-hidden pulse-danger border-red-500/40 bg-red-950/20';
+            } else {
+                critCard.className = 'glass-card p-4 rounded-2xl flex items-center justify-between relative overflow-hidden border border-slate-800';
+            }
+
+            renderView();
+            updateCharts(criticalCount, Math.max(0, stockItems.length - criticalCount));
+        }
+
+        function renderView() { renderTable(); }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            if (!tbody) return;
+            if (stockItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-slate-500 font-medium">Tidak ada data. Pastikan terhubung dengan Apps Script.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            stockItems.forEach((item, index) => {
+                const curStock = item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock);
+                const isEmpty = curStock <= 0;
+                const isCritical = !isEmpty && (curStock <= item.minstock || item.highlight);
+
+                let rowBg = 'hover:bg-slate-800/50';
+                let stockColor = 'text-teal-400';
+                let badgeClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                let badgeText = 'AMAN';
+
+                if (isEmpty) {
+                    rowBg = 'bg-slate-900/60 hover:bg-slate-800/80';
+                    stockColor = 'text-slate-500';
+                    badgeClass = 'bg-slate-800 text-slate-400 border border-slate-600/50';
+                    badgeText = 'KOSONG';
+                } else if (isCritical) {
+                    rowBg = 'bg-red-950/10 hover:bg-red-950/20';
+                    stockColor = 'text-red-400';
+                    badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/30';
+                    badgeText = 'KRITIS';
+                }
+
+                html += '<tr onclick="showItemHistory(' + item.id + ')" class="transition-colors cursor-pointer ' + rowBg + '">' +
+                    '<td class="p-3.5 pl-5 text-slate-400 font-mono">' + (index + 1) + '</td>' +
+                    '<td class="p-3.5 font-semibold text-white hover:text-teal-400 transition-colors">' + item.name + '</td>' +
+                    '<td class="p-3.5 text-slate-400">' + item.category + '</td>' +
+                    '<td class="p-3.5 text-right text-slate-300 font-mono">' + item.instock.toLocaleString('id-ID') + '</td>' +
+                    '<td class="p-3.5 text-right text-slate-300 font-mono">' + item.outstock.toLocaleString('id-ID') + '</td>' +
+                    '<td class="p-3.5 text-right font-bold font-mono ' + stockColor + '">' + curStock.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' ' + item.unit + '</td>' +
+                    '<td class="p-3.5 text-center text-slate-400 font-mono">' + item.minstock.toLocaleString('id-ID') + '</td>' +
+                    '<td class="p-3.5 text-center pr-5"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ' + badgeClass + '">' + badgeText + '</span></td>' +
+                '</tr>';
+            });
+            tbody.innerHTML = html;
+        }
+
+        function handleSearch() { applyFilters(); }
+        function handleFilter() { applyFilters(); }
+
+        function applyFilters() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            const cat = document.getElementById('categoryFilter').value;
+            const status = document.getElementById('statusFilter').value;
+
+            stockItems = initialItems.filter(item => {
+                const curStock = item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock);
+                const isEmpty = curStock <= 0;
+                const isCritical = !isEmpty && (curStock <= item.minstock || item.highlight);
+
+                const matchQuery = item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query);
+                const matchCategory = (cat === 'ALL') || (item.category === cat);
+                const matchStatus = (status === 'ALL') || 
+                                    (status === 'KOSONG' && isEmpty) ||
+                                    (status === 'KRITIS' && isCritical) || 
+                                    (status === 'AMAN' && !isEmpty && !isCritical);
+                return matchQuery && matchCategory && matchStatus;
+            });
+            renderView();
+        }
+
+        function showItemHistory(itemId) {
+            const item = initialItems.find(i => i.id === itemId) || stockItems.find(i => i.id === itemId);
+            if (!item) return;
+
+            const curStock = item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock);
+            const isEmpty = curStock <= 0;
+            const isCritical = !isEmpty && (curStock <= item.minstock || item.highlight);
+
+            document.getElementById('modalItemTitle').innerText = item.name;
+            document.getElementById('modalItemCategory').innerText = item.category;
+            
+            const badge = document.getElementById('modalItemBadge');
+            if (isEmpty) {
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 border border-slate-600/50';
+                badge.innerText = 'STOK KOSONG';
+            } else if (isCritical) {
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30';
+                badge.innerText = 'STOK KRITIS';
+            } else {
+                badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                badge.innerText = 'STOK AMAN';
+            }
+
+            document.getElementById('modalItemStock').innerText = curStock.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' ' + item.unit;
+            document.getElementById('modalItemIn').innerText = item.instock.toLocaleString('id-ID') + ' ' + item.unit;
+            document.getElementById('modalItemOut').innerText = item.outstock.toLocaleString('id-ID') + ' ' + item.unit;
+
+            // Menggunakan history asli dari sheet yang digabung di backend
+            mockHistoryData = item.history ? item.history : [];
+            filterHistory('ALL');
+
+            const modal = document.getElementById('historyModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.remove('flex');
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        function filterHistory(filterType) {
+            const btnAll = document.getElementById('btnFilterAll');
+            const btnIn = document.getElementById('btnFilterIn');
+            const btnOut = document.getElementById('btnFilterOut');
+
+            btnAll.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white';
+            btnIn.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white';
+            btnOut.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white';
+
+            if (filterType === 'ALL') btnAll.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-teal-600 text-white';
+            if (filterType === 'IN') btnIn.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-emerald-600 text-white';
+            if (filterType === 'OUT') btnOut.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white';
+
+            let filtered = mockHistoryData;
+            if (filterType === 'IN') filtered = mockHistoryData.filter(h => h.type === 'IN');
+            if (filterType === 'OUT') filtered = mockHistoryData.filter(h => h.type === 'OUT');
+
+            const tbody = document.getElementById('modalHistoryTableBody');
+            if (!tbody) return;
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">Belum ada riwayat transaksi untuk item ini.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            filtered.forEach(h => {
+                const isIn = h.type === 'IN';
+                const badgeHtml = isIn 
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><i class="fa-solid fa-arrow-down-long mr-1"></i> IN</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"><i class="fa-solid fa-arrow-up-long mr-1"></i> OUT</span>';
+                
+                const amountColor = isIn ? 'text-emerald-400' : 'text-amber-400';
+                const amountSign = isIn ? '+' : '-';
+
+                html += '<tr class="hover:bg-slate-900/50">' +
+                    '<td class="p-3 text-slate-400">' + h.date + '</td>' +
+                    '<td class="p-3">' + badgeHtml + '</td>' +
+                    '<td class="p-3 text-right font-bold ' + amountColor + '">' + amountSign + h.amount.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '</td>' +
+                    '<td class="p-3 text-slate-300 font-mono">' + h.doc + '</td>' +
+                    '<td class="p-3 text-slate-400">' + h.note + '</td>' +
+                '</tr>';
+            });
+            tbody.innerHTML = html;
+        }
+
+        function fetchSheetData(url) {
+            showToast('Mengunduh data dari Google Sheets...', 'success');
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        stockItems = data;
+                        initialItems = [...data]; 
+                        updateDashboard();
+                        showToast('Berhasil sinkronisasi ' + data.length + ' item!', 'success');
+                    } else {
+                        showToast('Gagal membaca data dari Google Sheets.', 'error');
+                    }
+                })
+                .catch(err => {
+                    showToast('Gagal terhubung ke URL API.', 'error');
+                    console.error("Fetch Error: ", err);
+                });
+        }
+
+        function refreshData() {
+            if (GOOGLE_WEB_APP_URL && GOOGLE_WEB_APP_URL.trim() !== "") {
+                fetchSheetData(GOOGLE_WEB_APP_URL.trim());
+            }
+        }
+
+        function downloadCSVTemplate() {
+            let csvContent = 'data:text/csv;charset=utf-8,Nama Item,Kategori,InStock,OutStock,SisaStock,Batas Min,Satuan\n';
+            stockItems.forEach(i => {
+                const curStock = i.sisastock !== undefined ? i.sisastock : Math.max(0, i.instock - i.outstock);
+                csvContent += '"' + i.name + '","' + i.category + '",' + i.instock + ',' + i.outstock + ',' + curStock + ',' + i.minstock + ',"' + i.unit + '"\n';
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', 'Data_Stok_Gudang.csv');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function exportPDF() {
+            if (!window.jspdf || !window.jspdf.jsPDF) {
+                showToast('Library PDF belum dimuat.', 'error');
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+
+            let totalStockSum = 0, criticalCount = 0;
+            stockItems.forEach(item => {
+                const curStock = item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock);
+                totalStockSum += curStock;
+                if (curStock <= item.minstock || item.highlight) criticalCount++;
+            });
+
+            doc.setFillColor(15, 23, 42); 
+            doc.rect(0, 0, 210, 28, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('LAPORAN SISA STOK GUDANG BAHAN KERING', 14, 15);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(148, 163, 184); 
+            const todayStr = new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            doc.text('Dicetak Pada: ' + todayStr, 14, 22);
+
+            doc.setDrawColor(226, 232, 240);
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(14, 34, 182, 16, 2, 2, 'FD');
+            doc.setTextColor(51, 65, 85);
+            doc.setFontSize(8.5);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Total Item: ' + stockItems.length, 18, 44);
+            doc.text('Total Stok: ' + totalStockSum.toLocaleString('id-ID', { maximumFractionDigits: 1 }), 75, 44);
+            
+            if (criticalCount > 0) { doc.setTextColor(220, 38, 38); doc.text('Item Alert: ' + criticalCount + ' Item', 142, 44); } 
+            else { doc.setTextColor(22, 163, 74); doc.text('Item Alert: 0 (Aman)', 142, 44); }
+
+            const tableRows = stockItems.map((item, index) => {
+                const curStock = item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock);
+                let statusText = 'AMAN';
+                if (curStock <= 0) statusText = 'KOSONG';
+                else if (curStock <= item.minstock || item.highlight) statusText = 'KRITIS';
+
+                return [
+                    index + 1, item.name, item.category,
+                    item.instock.toLocaleString('id-ID'), item.outstock.toLocaleString('id-ID'),
+                    curStock.toLocaleString('id-ID', { maximumFractionDigits: 1 }),
+                    item.minstock.toLocaleString('id-ID'), statusText
+                ];
+            });
+
+            doc.autoTable({
+                startY: 54,
+                head: [['#', 'Nama Item', 'Kategori', 'In', 'Out', 'Sisa', 'Min', 'Status']],
+                body: tableRows,
+                theme: 'striped',
+                headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontSize: 8 },
+                bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+                columnStyles: { 0: { cellWidth: 8 }, 5: { fontStyle: 'bold' }, 7: { fontStyle: 'bold' } },
+                didParseCell: function(data) {
+                    if (data.section === 'body' && data.column.index === 7) {
+                        if (data.row.raw[7] === 'KRITIS') data.cell.styles.textColor = [220, 38, 38];
+                        else if (data.row.raw[7] === 'KOSONG') data.cell.styles.textColor = [148, 163, 184];
+                    }
+                }
+            });
+            doc.save('Laporan_Stok_Gudang.pdf');
+        }
+
+        function initCharts() {
+            const ctx1 = document.getElementById('statusDonutChart').getContext('2d');
+            donutChartInstance = new Chart(ctx1, {
+                type: 'doughnut',
+                data: { labels: ['Stok Kritis/Kosong', 'Stok Aman'], datasets: [{ data: [0, 0], backgroundColor: ['#ef4444', '#10b981'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 } } } }, cutout: '72%' }
+            });
+
+            const ctx2 = document.getElementById('volumeBarChart').getContext('2d');
+            barChartInstance = new Chart(ctx2, {
+                type: 'bar',
+                data: { labels: [], datasets: [{ label: 'Sisa Stok', data: [], backgroundColor: '#14b8a6', borderRadius: 6 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { color: '#64748b' } } } }
+            });
+        }
+
+        function updateCharts(criticalCount, safeCount) {
+            if (donutChartInstance) {
+                donutChartInstance.data.datasets[0].data = [criticalCount, safeCount];
+                donutChartInstance.update();
+            }
+            if (barChartInstance) {
+                const topItems = stockItems.slice(0, 10);
+                barChartInstance.data.labels = topItems.map(i => i.name.substring(0, 12));
+                barChartInstance.data.datasets[0].data = topItems.map(i => i.sisastock !== undefined ? i.sisastock : Math.max(0, i.instock - i.outstock));
+                barChartInstance.update();
+            }
+        }
+    </script>
+</body>
+</html>
