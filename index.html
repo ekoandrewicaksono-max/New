@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistem Informasi Gudang Bahan Kering (Feed Ingredients)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          ink: { 950: '#05070a', 900: '#0c1016', 850: '#10151d', 800: '#161c26', 700: '#232b38', 600: '#333d4d' },
+          wheat: { 400: '#e3ba6a', 500: '#d9a441', 600: '#b8842a' },
+          teal: { 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488' }
+        },
+        fontFamily: { display: ['"Space Grotesk"', 'sans-serif'], sans: ['Inter', 'sans-serif'] }
+      }
+    }
+  }
+</script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<style>
+  body { font-family: 'Inter', sans-serif; background-color: #05070a; color: #f1f5f2; }
+  h1, h2, h3, .font-display { font-family: 'Space Grotesk', sans-serif; }
+  .glass-card { background: rgba(12, 16, 22, 0.9); backdrop-filter: blur(10px); box-shadow: 0 8px 28px 0 rgba(0,0,0,0.35); }
+  .glass-card-hover { transition: all .2s ease; }
+  .glass-card-hover:hover { transform: translateY(-2px); border-color: rgba(217,164,65,0.35); }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #0a0d12; }
+  ::-webkit-scrollbar-thumb { background: #232b38; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #333d4d; }
+  @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,.45); } 70% { box-shadow: 0 0 0 9px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+  .alert-pulse { animation: pulse-ring 2.2s infinite; }
+  @keyframes slide-down { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+  .anim-in { animation: slide-down .35s ease; }
+  button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid #d9a441; outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .alert-pulse, .anim-in, .animate-pulse { animation: none !important; } }
+</style>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#d9a441">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+</head>
+<body class="min-h-screen text-slate-100 bg-ink-950 antialiased selection:bg-wheat-500 selection:text-ink-950">
+
+<div id="toastContainer" class="fixed top-5 right-5 z-[60] flex flex-col gap-2 pointer-events-none"></div>
+
+<div class="min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-40 border-b border-ink-700/80 bg-ink-950/90 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 gap-4">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-wheat-500 to-wheat-400 flex items-center justify-center text-ink-950 text-xl shrink-0">
+            <i class="fa-solid fa-wheat-awn"></i>
+          </div>
+          <div class="min-w-0">
+            <h1 class="font-display font-bold text-base sm:text-lg text-white leading-tight truncate">Gudang Bahan Kering</h1>
+            <p class="text-xs text-slate-400 flex items-center gap-1.5">
+              <span id="liveDot" class="inline-block w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></span>
+              <span id="liveStatusText">Menghubungkan ke Google Sheets…</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <button id="soundToggleBtn" onclick="toggleSound()" title="Alarm suara stok kritis"
+            class="p-2 rounded-xl text-slate-400 hover:text-white bg-ink-800/80 hover:bg-ink-700 border border-ink-700 transition-all">
+            <i id="soundToggleIcon" class="fa-solid fa-bell-slash"></i>
+          </button>
+          <button onclick="downloadCSVTemplate()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-ink-800/80 hover:bg-ink-700 text-slate-300 border border-ink-700 transition-all hidden sm:flex items-center gap-1.5">
+            <i class="fa-solid fa-file-csv text-sky-400"></i><span>CSV</span>
+          </button>
+          <button onclick="exportPDF()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-file-pdf"></i><span class="hidden sm:inline">PDF</span>
+          </button>
+          <button onclick="refreshData()" title="Refresh Data" class="p-2 rounded-xl text-slate-400 hover:text-white bg-ink-800/80 hover:bg-ink-700 border border-ink-700 transition-all">
+            <i class="fa-solid fa-arrows-rotate" id="refreshIcon"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- ALERT BANNER -->
+    <div id="alertBanner" class="hidden anim-in glass-card rounded-2xl border border-red-500/30 p-4">
+      <div class="flex items-start gap-3">
+        <div class="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/40 text-red-400 flex items-center justify-center shrink-0 alert-pulse">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-semibold text-red-300" id="alertBannerTitle">Ada item stok kritis</p>
+          <p class="text-xs text-slate-400 mt-0.5" id="alertBannerBody">-</p>
+        </div>
+        <button onclick="dismissAlertBanner()" class="text-slate-500 hover:text-slate-300 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <!-- KPI ROW -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+        <div>
+          <p class="text-xs font-medium text-slate-400">Total Item</p>
+          <h3 class="text-2xl font-display font-bold text-white mt-1" id="kpiTotalItems">0</h3>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-ink-800 border border-ink-700 text-wheat-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-cubes"></i></div>
+      </div>
+      <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+        <div>
+          <p class="text-xs font-medium text-slate-400">Total Sisa Stok</p>
+          <h3 class="text-2xl font-display font-bold text-white mt-1" id="kpiTotalStock">0 <span class="text-xs font-normal text-slate-400">Kg</span></h3>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-ink-800 border border-ink-700 text-sky-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-weight-hanging"></i></div>
+      </div>
+      <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+        <div>
+          <p class="text-xs font-medium text-slate-400">Item Kritis / Kosong</p>
+          <h3 class="text-2xl font-display font-bold text-red-400 mt-1" id="kpiCriticalCount">0</h3>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-red-950/40 border border-red-500/30 text-red-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-circle-exclamation"></i></div>
+      </div>
+      <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+        <div>
+          <p class="text-xs font-medium text-slate-400">Perkiraan Habis &le; 7 Hari</p>
+          <h3 class="text-2xl font-display font-bold text-amber-400 mt-1" id="kpiSoonEmpty">0</h3>
+        </div>
+        <div class="w-11 h-11 rounded-xl bg-amber-950/30 border border-amber-500/30 text-amber-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-hourglass-half"></i></div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="glass-card p-5 rounded-2xl border border-ink-700">
+        <h3 class="font-display font-semibold text-sm text-white flex items-center gap-2 mb-3"><i class="fa-solid fa-chart-pie text-wheat-400"></i> Distribusi Status</h3>
+        <div class="h-52 relative"><canvas id="statusDonutChart"></canvas></div>
+      </div>
+      <div class="glass-card p-5 rounded-2xl border border-ink-700">
+        <h3 class="font-display font-semibold text-sm text-white flex items-center gap-2 mb-3"><i class="fa-solid fa-chart-column text-wheat-400"></i> Top 8 Volume Stok (Kg)</h3>
+        <div class="h-52"><canvas id="volumeBarChart"></canvas></div>
+      </div>
+      <div class="glass-card p-5 rounded-2xl border border-ink-700">
+        <h3 class="font-display font-semibold text-sm text-white flex items-center gap-2 mb-3"><i class="fa-solid fa-scale-balanced text-wheat-400"></i> WHS vs Transit (Top 8)</h3>
+        <div class="h-52"><canvas id="comparisonChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- FILTERS -->
+    <div class="glass-card p-4 rounded-2xl border border-ink-700 flex flex-col xl:flex-row items-center justify-between gap-4">
+      <div class="relative w-full xl:w-64">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+        <input type="text" id="searchInput" oninput="handleFilter()" placeholder="Cari nama bahan baku..."
+          class="w-full bg-ink-900 border border-ink-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-wheat-500 transition-all">
+      </div>
+      <div class="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+        <select id="warehouseFilter" onchange="handleFilter()" class="bg-ink-900 border border-ink-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-wheat-500 font-semibold text-wheat-400">
+          <option value="Warehouse">Gudang: WHS Utama</option>
+          <option value="Feed">Gudang: Transit Feed</option>
+          <option value="ALL">Semua Gudang</option>
+        </select>
+        <select id="categoryFilter" onchange="handleFilter()" class="bg-ink-900 border border-ink-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-wheat-500">
+          <option value="ALL">Semua Kategori</option>
+        </select>
+        <select id="sortSelect" onchange="handleFilter()" class="bg-ink-900 border border-ink-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-wheat-500">
+          <option value="default">Urutkan: Bawaan</option>
+          <option value="stock_desc">Sisa Stok: Terbanyak</option>
+          <option value="stock_asc">Sisa Stok: Tersedikit</option>
+          <option value="days_asc">Prediksi Habis: Tercepat</option>
+        </select>
+        <div class="flex items-center gap-3 bg-ink-900 border border-ink-700 rounded-xl px-3 py-2">
+          <span class="text-xs text-slate-400 font-medium mr-1">Status:</span>
+          <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer hover:text-white">
+            <input type="checkbox" value="AMAN" class="status-checkbox w-3.5 h-3.5 accent-emerald-500 rounded bg-ink-800 border-ink-600" onchange="handleFilter()"> Aman
+          </label>
+          <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer hover:text-white">
+            <input type="checkbox" value="KRITIS" class="status-checkbox w-3.5 h-3.5 accent-red-500 rounded bg-ink-800 border-ink-600" onchange="handleFilter()"> Kritis
+          </label>
+          <label class="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer hover:text-white">
+            <input type="checkbox" value="KOSONG" class="status-checkbox w-3.5 h-3.5 accent-slate-500 rounded bg-ink-800 border-ink-600" onchange="handleFilter()"> Kosong
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div id="tableContainer" class="glass-card rounded-2xl overflow-hidden border border-ink-700">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="bg-ink-900/90 text-slate-400 border-b border-ink-700 font-semibold">
+              <th class="p-3.5 pl-5">#</th>
+              <th class="p-3.5">Gudang</th>
+              <th class="p-3.5">Nama Item</th>
+              <th class="p-3.5">Kategori</th>
+              <th class="p-3.5 text-right">In</th>
+              <th class="p-3.5 text-right">Out</th>
+              <th class="p-3.5 text-right">Sisa Stok</th>
+              <th class="p-3.5 text-center">Batas Min</th>
+              <th class="p-3.5 text-center">Prediksi Habis</th>
+              <th class="p-3.5 text-center pr-5">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-ink-800 text-slate-200"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="text-center text-[11px] text-slate-600">Klik baris item untuk melihat riwayat transaksi &amp; grafik tren. Prediksi habis dihitung dari rata-rata pemakaian 30 hari terakhir.</p>
+
+  </main>
+</div>
+
+<!-- MODAL RIWAYAT & TREND -->
+<div id="historyModal" class="fixed inset-0 z-50 bg-ink-950/85 backdrop-blur-md hidden items-center justify-center p-4">
+  <div class="glass-card w-full max-w-3xl rounded-2xl overflow-hidden border border-ink-700 shadow-2xl flex flex-col max-h-[92vh]">
+
+    <div class="p-5 border-b border-ink-800 flex items-center justify-between bg-ink-900/60 shrink-0">
+      <div class="flex items-center gap-3 min-w-0 pr-2">
+        <div class="w-10 h-10 rounded-xl bg-wheat-500/10 border border-wheat-500/30 text-wheat-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-clock-rotate-left"></i></div>
+        <div class="min-w-0">
+          <h3 id="modalItemTitle" class="font-display font-bold text-base text-white truncate">Nama Item</h3>
+          <p id="modalItemCategory" class="text-xs text-slate-400 truncate">Kategori</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 shrink-0">
+        <span id="modalItemBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">STOK AMAN</span>
+        <button onclick="closeHistoryModal()" class="w-8 h-8 rounded-lg bg-ink-800 hover:bg-ink-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <div class="overflow-y-auto p-5 space-y-5">
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-ink-900/70 border border-ink-800 rounded-xl p-3">
+          <p class="text-[10px] text-slate-500 font-medium">Sisa Stok</p>
+          <p id="modalItemStock" class="text-sm font-bold text-white mt-0.5">-</p>
+        </div>
+        <div class="bg-ink-900/70 border border-ink-800 rounded-xl p-3">
+          <p class="text-[10px] text-slate-500 font-medium">Total In</p>
+          <p id="modalItemIn" class="text-sm font-bold text-emerald-400 mt-0.5">-</p>
+        </div>
+        <div class="bg-ink-900/70 border border-ink-800 rounded-xl p-3">
+          <p class="text-[10px] text-slate-500 font-medium">Total Out</p>
+          <p id="modalItemOut" class="text-sm font-bold text-amber-400 mt-0.5">-</p>
+        </div>
+        <div class="bg-ink-900/70 border border-ink-800 rounded-xl p-3">
+          <p class="text-[10px] text-slate-500 font-medium">Prediksi Habis</p>
+          <p id="modalItemPrediction" class="text-sm font-bold text-white mt-0.5">-</p>
+        </div>
+      </div>
+
+      <div id="trendSection">
+        <h4 class="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-chart-line text-wheat-400"></i> Tren 30 Hari Terakhir (Kg)</h4>
+        <div class="h-40 bg-ink-900/50 border border-ink-800 rounded-xl p-3"><canvas id="modalTrendChart"></canvas></div>
+      </div>
+
+      <div id="historySection">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="text-xs font-semibold text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-list-ul text-wheat-400"></i> Riwayat Transaksi</h4>
+          <div class="flex gap-1 bg-ink-900/70 border border-ink-800 rounded-lg p-0.5">
+            <button id="btnFilterAll" onclick="filterHistory('ALL')" class="px-3 py-1 rounded-md text-xs font-semibold bg-wheat-600 text-white">Semua</button>
+            <button id="btnFilterIn" onclick="filterHistory('IN')" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white">Masuk</button>
+            <button id="btnFilterOut" onclick="filterHistory('OUT')" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white">Keluar</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-ink-800">
+          <table class="w-full text-left text-xs">
+            <thead>
+              <tr class="bg-ink-900/80 text-slate-500 font-semibold">
+                <th class="p-3">Tanggal</th><th class="p-3">Tipe</th><th class="p-3 text-right">Jumlah</th><th class="p-3">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody id="modalHistoryTableBody" class="divide-y divide-ink-800/70"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="noHistoryMessage" class="hidden text-center text-xs text-slate-500 py-8">
+        <i class="fa-solid fa-circle-info mb-2 text-lg block"></i>
+        Riwayat transaksi rinci hanya dicatat untuk item di gudang WHS Utama.
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const GOOGLE_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzAicg4SHZ9Q-VmhjWsIjCBY14dJ_Tv-cYcYQc-KHe6F0ZWZ7hv5b1Do0swfwFrPFb8/exec";
+
+  let rawDataFromServer = [];
+  let stockItems = [];
+  let mockHistoryData = [];
+  let donutChartInstance, barChartInstance, comparisonChartInstance, modalTrendChartInstance;
+  let soundEnabled = false;
+  let audioCtx = null;
+  let lastCriticalIds = new Set();
+  let alertBannerDismissed = false;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initCharts();
+    autoConnectSheet();
+  });
+
+  function autoConnectSheet() { fetchSheetData(GOOGLE_WEB_APP_URL); }
+  function refreshData() {
+    const icon = document.getElementById('refreshIcon');
+    icon.classList.add('fa-spin');
+    fetchSheetData(GOOGLE_WEB_APP_URL, () => icon.classList.remove('fa-spin'));
+  }
+
+  function fetchSheetData(url, done) {
+    setLiveStatus('Menghubungkan & mengunduh data Google Sheets...', 'connecting');
+    fetch(url).then(res => res.json()).then(data => {
+      if (data && data.length > 0) {
+        rawDataFromServer = data;
+        populateCategoryFilter(data);
+        handleFilter();
+        setLiveStatus('Tersinkron • ' + data.length + ' item', 'ok');
+        showToast('Berhasil sinkronisasi ' + data.length + ' item dari Google Sheets!', 'success');
+      } else {
+        setLiveStatus('Terhubung, tapi data kosong', 'warn');
+      }
+    }).catch(err => {
+      setLiveStatus('Gagal terhubung ke Google Sheets', 'error');
+      showToast('Gagal mengambil data dari URL API.', 'error');
+      console.error(err);
+    }).finally(() => { if (done) done(); });
+  }
+
+  function setLiveStatus(text, state) {
+    document.getElementById('liveStatusText').innerText = text;
+    const dot = document.getElementById('liveDot');
+    dot.className = 'inline-block w-1.5 h-1.5 rounded-full ' + (
+      state === 'ok' ? 'bg-teal-500 animate-pulse' :
+      state === 'error' ? 'bg-red-500' :
+      state === 'warn' ? 'bg-amber-500' : 'bg-slate-500 animate-pulse'
+    );
+  }
+
+  function populateCategoryFilter(data) {
+    const sel = document.getElementById('categoryFilter');
+    const current = sel.value;
+    const categories = Array.from(new Set(data.map(i => i.category).filter(Boolean))).sort();
+    sel.innerHTML = '<option value="ALL">Semua Kategori</option>' + categories.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+    if (categories.includes(current)) sel.value = current;
+  }
+
+  // ---------- Status & prediction helpers ----------
+  function getCurStock(item) { return item.sisastock !== undefined ? item.sisastock : Math.max(0, item.instock - item.outstock); }
+
+  function getItemStatus(item) {
+    const cur = getCurStock(item);
+    if (cur <= 0) return 'KOSONG';
+    if (cur <= item.minstock || item.highlight) return 'KRITIS';
+    return 'AMAN';
+  }
+
+  function predictionLabel(item) {
+    const days = item.daysToEmpty;
+    if (days === null || days === undefined) return { text: '—', cls: 'text-slate-500' };
+    if (days <= 3) return { text: days.toFixed(1) + ' hari', cls: 'text-red-400 font-bold' };
+    if (days <= 7) return { text: days.toFixed(1) + ' hari', cls: 'text-amber-400 font-bold' };
+    if (days > 60) return { text: '> 60 hari', cls: 'text-emerald-400' };
+    return { text: Math.round(days) + ' hari', cls: 'text-slate-300' };
+  }
+
+  // ---------- Sound alert ----------
+  function toggleSound() {
+    soundEnabled = !soundEnabled;
+    if (soundEnabled && !audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* not supported */ }
+    }
+    const icon = document.getElementById('soundToggleIcon');
+    const btn = document.getElementById('soundToggleBtn');
+    if (soundEnabled) {
+      icon.className = 'fa-solid fa-bell';
+      btn.classList.add('text-wheat-400', 'border-wheat-500/40');
+      showToast('Alarm suara stok kritis diaktifkan.', 'success');
+      playBeep();
+    } else {
+      icon.className = 'fa-solid fa-bell-slash';
+      btn.classList.remove('text-wheat-400', 'border-wheat-500/40');
+      showToast('Alarm suara dimatikan.', 'success');
+    }
+  }
+
+  function playBeep() {
+    if (!soundEnabled || !audioCtx) return;
+    try {
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.15, audioCtx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.35);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + 0.36);
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---------- Alert banner ----------
+  function updateAlertBanner(criticalItems) {
+    const banner = document.getElementById('alertBanner');
+    if (criticalItems.length === 0 || alertBannerDismissed) { banner.classList.add('hidden'); return; }
+    banner.classList.remove('hidden');
+    document.getElementById('alertBannerTitle').innerText = criticalItems.length + ' item butuh perhatian segera';
+    const names = criticalItems.slice(0, 4).map(i => i.name).join(', ');
+    const extra = criticalItems.length > 4 ? ' dan ' + (criticalItems.length - 4) + ' lainnya' : '';
+    document.getElementById('alertBannerBody').innerText = names + extra + '.';
+
+    const currentIds = new Set(criticalItems.map(i => i.id));
+    let hasNew = false;
+    currentIds.forEach(id => { if (!lastCriticalIds.has(id)) hasNew = true; });
+    if (hasNew) playBeep();
+    lastCriticalIds = currentIds;
+  }
+
+  function dismissAlertBanner() {
+    alertBannerDismissed = true;
+    document.getElementById('alertBanner').classList.add('hidden');
+  }
+
+  // ---------- Toast ----------
+  function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    const isError = type === 'error';
+    el.className = 'pointer-events-auto glass-card border ' + (isError ? 'border-red-500/40' : 'border-teal-500/30') + ' rounded-xl px-4 py-2.5 text-xs font-medium text-white flex items-center gap-2 anim-in shadow-lg';
+    el.innerHTML = '<i class="fa-solid ' + (isError ? 'fa-circle-exclamation text-red-400' : 'fa-circle-check text-teal-400') + '"></i>' + message;
+    container.appendChild(el);
+    setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, 3200);
+  }
+
+  // ---------- KPI + charts ----------
+  function updateDashboard() {
+    const tbody = document.getElementById('tableBody');
+    document.getElementById('kpiTotalItems').innerText = stockItems.length;
+
+    let totalStock = 0, criticalCount = 0, soonEmptyCount = 0, safeCount = 0;
+    const criticalItems = [];
+
+    stockItems.forEach(item => {
+      const cur = getCurStock(item);
+      totalStock += cur;
+      const status = getItemStatus(item);
+      if (status === 'KRITIS' || status === 'KOSONG') { criticalCount++; criticalItems.push(item); } else { safeCount++; }
+      if (item.daysToEmpty !== null && item.daysToEmpty !== undefined && item.daysToEmpty <= 7) soonEmptyCount++;
+    });
+
+    document.getElementById('kpiTotalStock').innerHTML = totalStock.toLocaleString('id-ID', { maximumFractionDigits: 0 }) + ' <span class="text-xs font-normal text-slate-400">Kg</span>';
+    document.getElementById('kpiCriticalCount').innerText = criticalCount;
+    document.getElementById('kpiSoonEmpty').innerText = soonEmptyCount;
+
+    updateAlertBanner(criticalItems.filter(i => getItemStatus(i) === 'KRITIS'));
+    updateCharts(criticalCount, safeCount);
+    updateComparisonChart();
+
+    if (stockItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="p-8 text-center text-slate-500">Tidak ada item yang cocok dengan filter saat ini.</td></tr>';
+      return;
+    }
+
+    let html = '';
+    stockItems.forEach((item, index) => {
+      const cur = getCurStock(item);
+      const status = getItemStatus(item);
+      let rowBg = 'hover:bg-ink-800/50', stockColor = 'text-teal-400', badgeClass = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30', badgeText = 'AMAN';
+      if (status === 'KOSONG') { rowBg = 'bg-ink-900/60 hover:bg-ink-800/80'; stockColor = 'text-slate-500'; badgeClass = 'bg-ink-800 text-slate-400 border border-ink-600/50'; badgeText = 'KOSONG'; }
+      else if (status === 'KRITIS') { rowBg = 'bg-red-950/10 hover:bg-red-950/20'; stockColor = 'text-red-400'; badgeClass = 'bg-red-500/20 text-red-400 border border-red-500/30'; badgeText = 'KRITIS'; }
+
+      const whsBadge = item.warehouse === 'Warehouse'
+        ? '<span class="text-[9px] bg-sky-900/40 text-sky-300 px-1.5 py-0.5 rounded border border-sky-700/50">WHS Utama</span>'
+        : '<span class="text-[9px] bg-violet-900/40 text-violet-300 px-1.5 py-0.5 rounded border border-violet-700/50">Transit Feed</span>';
+
+      const pred = predictionLabel(item);
+
+      html += '<tr onclick="showItemHistory(\'' + item.id + '\')" class="transition-colors cursor-pointer ' + rowBg + '">' +
+        '<td class="p-3.5 pl-5 text-slate-500 font-mono">' + (index + 1) + '</td>' +
+        '<td class="p-3.5">' + whsBadge + '</td>' +
+        '<td class="p-3.5 font-semibold text-white hover:text-wheat-400 transition-colors">' + item.name + '</td>' +
+        '<td class="p-3.5 text-slate-400">' + item.category + '</td>' +
+        '<td class="p-3.5 text-right text-slate-300 font-mono">' + item.instock.toLocaleString('id-ID') + '</td>' +
+        '<td class="p-3.5 text-right text-slate-300 font-mono">' + item.outstock.toLocaleString('id-ID') + '</td>' +
+        '<td class="p-3.5 text-right font-bold font-mono ' + stockColor + '">' + cur.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' ' + item.unit + '</td>' +
+        '<td class="p-3.5 text-center text-slate-400 font-mono">' + item.minstock.toLocaleString('id-ID') + '</td>' +
+        '<td class="p-3.5 text-center font-mono text-[11px] ' + pred.cls + '">' + pred.text + '</td>' +
+        '<td class="p-3.5 text-center pr-5"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ' + badgeClass + '">' + badgeText + '</span></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function handleFilter() {
+    const query = document.getElementById('searchInput').value.toLowerCase();
+    const cat = document.getElementById('categoryFilter').value;
+    const whs = document.getElementById('warehouseFilter').value;
+    const sortBy = document.getElementById('sortSelect').value;
+    const checkedStatuses = Array.from(document.querySelectorAll('.status-checkbox:checked')).map(cb => cb.value);
+
+    stockItems = rawDataFromServer.filter(item => {
+      const matchQuery = item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query);
+      const matchCategory = (cat === 'ALL') || (item.category === cat);
+      const matchWarehouse = (whs === 'ALL') || (item.warehouse === whs);
+      const matchStatus = checkedStatuses.length === 0 || checkedStatuses.includes(getItemStatus(item));
+      return matchQuery && matchCategory && matchWarehouse && matchStatus;
+    });
+
+    if (sortBy === 'stock_desc') stockItems.sort((a, b) => getCurStock(b) - getCurStock(a));
+    else if (sortBy === 'stock_asc') stockItems.sort((a, b) => getCurStock(a) - getCurStock(b));
+    else if (sortBy === 'days_asc') stockItems.sort((a, b) => {
+      const da = (a.daysToEmpty === null || a.daysToEmpty === undefined) ? Infinity : a.daysToEmpty;
+      const db = (b.daysToEmpty === null || b.daysToEmpty === undefined) ? Infinity : b.daysToEmpty;
+      return da - db;
+    });
+
+    updateDashboard();
+  }
+
+  // ---------- Item detail modal ----------
+  function showItemHistory(itemId) {
+    const item = rawDataFromServer.find(i => i.id === itemId);
+    if (!item) return;
+
+    const cur = getCurStock(item);
+    const status = getItemStatus(item);
+
+    document.getElementById('modalItemTitle').innerText = item.name;
+    document.getElementById('modalItemCategory').innerText = item.category + ' | ' + (item.warehouse === 'Warehouse' ? 'WHS Utama' : 'Transit Feed');
+
+    const badge = document.getElementById('modalItemBadge');
+    if (status === 'KOSONG') { badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-ink-800 text-slate-400 border border-ink-600/50'; badge.innerText = 'STOK KOSONG'; }
+    else if (status === 'KRITIS') { badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30'; badge.innerText = 'STOK KRITIS'; }
+    else { badge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'; badge.innerText = 'STOK AMAN'; }
+
+    document.getElementById('modalItemStock').innerText = cur.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' ' + item.unit;
+    document.getElementById('modalItemIn').innerText = item.instock.toLocaleString('id-ID') + ' ' + item.unit;
+    document.getElementById('modalItemOut').innerText = item.outstock.toLocaleString('id-ID') + ' ' + item.unit;
+
+    const pred = predictionLabel(item);
+    const predEl = document.getElementById('modalItemPrediction');
+    predEl.innerText = pred.text;
+    predEl.className = 'text-sm mt-0.5 ' + pred.cls;
+
+    const historySection = document.getElementById('historySection');
+    const trendSection = document.getElementById('trendSection');
+    const noHistoryMessage = document.getElementById('noHistoryMessage');
+
+    if (item.warehouse === 'Warehouse') {
+      historySection.classList.remove('hidden');
+      trendSection.classList.remove('hidden');
+      noHistoryMessage.classList.add('hidden');
+      mockHistoryData = item.history ? item.history : [];
+      filterHistory('ALL');
+      renderTrendChart(item.trend || []);
+    } else {
+      historySection.classList.add('hidden');
+      trendSection.classList.add('hidden');
+      noHistoryMessage.classList.remove('hidden');
+      mockHistoryData = [];
+    }
+
+    const modal = document.getElementById('historyModal');
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+  }
+
+  function closeHistoryModal() {
+    document.getElementById('historyModal').classList.remove('flex');
+    document.getElementById('historyModal').classList.add('hidden');
+  }
+
+  function filterHistory(filterType) {
+    const btnAll = document.getElementById('btnFilterAll'), btnIn = document.getElementById('btnFilterIn'), btnOut = document.getElementById('btnFilterOut');
+    btnAll.className = btnIn.className = btnOut.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white';
+    if (filterType === 'ALL') btnAll.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-wheat-600 text-white';
+    if (filterType === 'IN') btnIn.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-emerald-600 text-white';
+    if (filterType === 'OUT') btnOut.className = 'px-3 py-1 rounded-md text-xs font-semibold bg-amber-600 text-white';
+
+    let filtered = mockHistoryData;
+    if (filterType === 'IN') filtered = mockHistoryData.filter(h => h.type === 'IN');
+    if (filterType === 'OUT') filtered = mockHistoryData.filter(h => h.type === 'OUT');
+
+    const tbody = document.getElementById('modalHistoryTableBody');
+    if (!tbody) return;
+    if (filtered.length === 0) { tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-slate-500">Tidak ada riwayat transaksi.</td></tr>'; return; }
+
+    let html = '';
+    filtered.forEach(h => {
+      const isIn = h.type === 'IN';
+      const badgeHtml = isIn
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"><i class="fa-solid fa-arrow-down-long mr-1"></i> IN</span>'
+        : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30"><i class="fa-solid fa-arrow-up-long mr-1"></i> OUT</span>';
+      const amountColor = isIn ? 'text-emerald-400' : 'text-amber-400';
+      const amountSign = isIn ? '+' : '-';
+      html += '<tr class="hover:bg-ink-900/50"><td class="p-3 text-slate-400">' + h.date + '</td><td class="p-3">' + badgeHtml + '</td><td class="p-3 text-right font-bold ' + amountColor + '">' + amountSign + h.amount.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' Kg</td><td class="p-3 text-slate-400">' + h.note + '</td></tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  // ---------- Exports ----------
+  function downloadCSVTemplate() {
+    let csvContent = 'data:text/csv;charset=utf-8,Gudang,Nama Item,Kategori,InStock,OutStock,SisaStock,Batas Min,Satuan,Rata2 Keluar/Hari,Prediksi Habis (hari)\n';
+    stockItems.forEach(i => {
+      const cur = getCurStock(i);
+      const days = (i.daysToEmpty === null || i.daysToEmpty === undefined) ? '' : i.daysToEmpty;
+      csvContent += '"' + i.warehouse + '","' + i.name + '","' + i.category + '",' + i.instock + ',' + i.outstock + ',' + cur + ',' + i.minstock + ',"' + i.unit + '",' + (i.avgDailyOut || 0) + ',' + days + '\n';
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri); link.setAttribute('download', 'Laporan_Stok_Bahan_Kering.csv');
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    showToast('CSV berhasil diunduh.', 'success');
+  }
+
+  function exportPDF() {
+    if (!window.jspdf || !window.jspdf.jsPDF) { showToast('Library PDF belum selesai dimuat.', 'error'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    let totalStockSum = 0, criticalCount = 0;
+    stockItems.forEach(item => { const cur = getCurStock(item); totalStockSum += cur; if (getItemStatus(item) !== 'AMAN') criticalCount++; });
+
+    doc.setFillColor(12, 16, 22); doc.rect(0, 0, 210, 28, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.text('LAPORAN STOK GUDANG', 14, 15);
+
+    const whsFilter = document.getElementById('warehouseFilter');
+    const whsName = whsFilter.options[whsFilter.selectedIndex].text;
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+    doc.text('Filter: ' + whsName + ' | Dicetak Pada: ' + new Date().toLocaleDateString('id-ID'), 14, 22);
+
+    doc.setDrawColor(226, 232, 240); doc.setFillColor(248, 250, 252); doc.roundedRect(14, 34, 182, 16, 2, 2, 'FD');
+    doc.setTextColor(51, 65, 85); doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.text('Total Item: ' + stockItems.length, 18, 44);
+    doc.text('Total Sisa Stok: ' + totalStockSum.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' Kg', 75, 44);
+    if (criticalCount > 0) { doc.setTextColor(220, 38, 38); doc.text('Item Alert: ' + criticalCount + ' Item', 142, 44); }
+    else { doc.setTextColor(22, 163, 74); doc.text('Item Alert: 0 (Aman)', 142, 44); }
+
+    const tableRows = stockItems.map((item, index) => {
+      const cur = getCurStock(item);
+      const status = getItemStatus(item);
+      const days = (item.daysToEmpty === null || item.daysToEmpty === undefined) ? '-' : item.daysToEmpty.toFixed(1) + ' hr';
+      return [index + 1, item.warehouse === 'Warehouse' ? 'WHS' : 'Feed', item.name, item.category, item.instock.toLocaleString('id-ID'), item.outstock.toLocaleString('id-ID'), cur.toLocaleString('id-ID', { maximumFractionDigits: 1 }), item.minstock.toLocaleString('id-ID'), days, status];
+    });
+
+    doc.autoTable({
+      startY: 54, head: [['#', 'Gudang', 'Nama Item', 'Kategori', 'In', 'Out', 'Sisa', 'Min', 'Prediksi', 'Status']], body: tableRows, theme: 'striped',
+      headStyles: { fillColor: [12, 16, 22], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold' }, bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+      columnStyles: { 0: { cellWidth: 7, halign: 'center' }, 1: { cellWidth: 11 }, 2: { cellWidth: 38 }, 3: { cellWidth: 22 }, 4: { cellWidth: 15, halign: 'right' }, 5: { cellWidth: 15, halign: 'right' }, 6: { cellWidth: 18, halign: 'right', fontStyle: 'bold' }, 7: { cellWidth: 13, halign: 'center' }, 8: { cellWidth: 17, halign: 'center' }, 9: { cellWidth: 16, halign: 'center', fontStyle: 'bold' } },
+      didParseCell: function (data) {
+        if (data.section === 'body' && (data.column.index === 6 || data.column.index === 9)) {
+          const cellStatus = data.row.raw[9];
+          if (cellStatus === 'KRITIS') data.cell.styles.textColor = [239, 68, 68];
+          else if (cellStatus === 'KOSONG') data.cell.styles.textColor = [148, 163, 184];
+          else if (cellStatus === 'AMAN') data.cell.styles.textColor = [16, 185, 129];
+        }
+      }
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) { doc.setPage(i); doc.setFontSize(7); doc.setTextColor(148, 163, 184); doc.text('Laporan Stok Gudang | Halaman ' + i + ' dari ' + pageCount, 105, 287, { align: 'center' }); }
+    doc.save('Laporan_Stok_Gudang.pdf');
+    showToast('Laporan PDF berhasil diunduh.', 'success');
+  }
+
+  // ---------- Charts ----------
+  function initCharts() {
+    const ctx1 = document.getElementById('statusDonutChart').getContext('2d');
+    donutChartInstance = new Chart(ctx1, {
+      type: 'doughnut',
+      data: { labels: ['Kritis / Kosong', 'Aman'], datasets: [{ data: [0, 0], backgroundColor: ['#ef4444', '#10b981'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10, family: 'Inter' } } } }, cutout: '72%' }
+    });
+
+    const ctx2 = document.getElementById('volumeBarChart').getContext('2d');
+    barChartInstance = new Chart(ctx2, {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Sisa Stok', data: [], backgroundColor: '#d9a441', borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#64748b', font: { size: 9, family: 'Inter' } }, grid: { display: false } }, y: { ticks: { color: '#64748b', font: { size: 9, family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+    });
+
+    const ctx3 = document.getElementById('comparisonChart').getContext('2d');
+    comparisonChartInstance = new Chart(ctx3, {
+      type: 'bar',
+      data: { labels: [], datasets: [
+        { label: 'WHS Utama', data: [], backgroundColor: '#38bdf8', borderRadius: 4 },
+        { label: 'Transit Feed', data: [], backgroundColor: '#a78bfa', borderRadius: 4 }
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 9, family: 'Inter' }, boxWidth: 10 } } }, scales: { x: { ticks: { color: '#64748b', font: { size: 8, family: 'Inter' } }, grid: { display: false } }, y: { ticks: { color: '#64748b', font: { size: 9, family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+    });
+  }
+
+  function updateCharts(criticalCount, safeCount) {
+    if (donutChartInstance) { donutChartInstance.data.datasets[0].data = [criticalCount, safeCount]; donutChartInstance.update(); }
+    if (barChartInstance) {
+      const topItems = [...stockItems].sort((a, b) => getCurStock(b) - getCurStock(a)).slice(0, 8);
+      barChartInstance.data.labels = topItems.map(i => i.name.substring(0, 12));
+      barChartInstance.data.datasets[0].data = topItems.map(i => getCurStock(i));
+      barChartInstance.update();
+    }
+  }
+
+  function updateComparisonChart() {
+    if (!comparisonChartInstance) return;
+    // Grup per nama item dari SELURUH data (bukan hanya hasil filter gudang), agar perbandingan tetap relevan
+    const byName = {};
+    rawDataFromServer.forEach(item => {
+      if (!byName[item.name]) byName[item.name] = { whs: 0, feed: 0 };
+      if (item.warehouse === 'Warehouse') byName[item.name].whs += getCurStock(item);
+      else byName[item.name].feed += getCurStock(item);
+    });
+    const names = Object.keys(byName)
+      .map(n => ({ name: n, total: byName[n].whs + byName[n].feed }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8)
+      .map(x => x.name);
+
+    comparisonChartInstance.data.labels = names.map(n => n.substring(0, 10));
+    comparisonChartInstance.data.datasets[0].data = names.map(n => byName[n].whs);
+    comparisonChartInstance.data.datasets[1].data = names.map(n => byName[n].feed);
+    comparisonChartInstance.update();
+  }
+
+  function renderTrendChart(trend) {
+    const ctx = document.getElementById('modalTrendChart').getContext('2d');
+    const labels = trend.map(t => t.date.slice(5)); // MM-DD
+    const inData = trend.map(t => t.in);
+    const outData = trend.map(t => t.out);
+
+    if (modalTrendChartInstance) modalTrendChartInstance.destroy();
+    modalTrendChartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Masuk', data: inData, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)', tension: 0.3, pointRadius: 0, fill: true, borderWidth: 1.5 },
+          { label: 'Keluar', data: outData, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.08)', tension: 0.3, pointRadius: 0, fill: true, borderWidth: 1.5 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 9, family: 'Inter' }, boxWidth: 10 } } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 8, family: 'Inter' }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { display: false } },
+          y: { ticks: { color: '#64748b', font: { size: 8, family: 'Inter' } }, grid: { color: 'rgba(255,255,255,0.05)' } }
+        }
+      }
+    });
+  }
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js")
+      .then(reg => console.log("PWA aktif:", reg.scope))
+      .catch(err => console.error("PWA gagal:", err));
+  });
+}
+</script>
+
+</body>
+</html>
