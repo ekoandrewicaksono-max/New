@@ -42,15 +42,6 @@
   button:focus-visible, input:focus-visible, select:focus-visible, [tabindex]:focus-visible { outline: 2px solid #d9a441; outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .alert-pulse, .anim-in, .animate-pulse { animation: none !important; } }
 </style>
-
-<!-- PWA -->
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#d9a441">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-
 </head>
 <body class="min-h-screen text-slate-100 bg-ink-950 antialiased selection:bg-wheat-500 selection:text-ink-950">
 
@@ -95,6 +86,22 @@
   </header>
 
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- VIEW TABS -->
+    <div class="glass-card p-1.5 rounded-2xl border border-ink-700 inline-flex gap-1 w-full sm:w-auto">
+      <button id="tabDashboardBtn" onclick="switchView('dashboard')"
+        class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 bg-wheat-600 text-white">
+        <i class="fa-solid fa-warehouse"></i><span>Dashboard Stok</span>
+      </button>
+      <button id="tabSelisihBtn" onclick="switchView('selisih')"
+        class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-white hover:bg-ink-800">
+        <i class="fa-solid fa-clipboard-check"></i><span>Cek Selisih Input</span>
+        <span id="tabSelisihBadge" class="hidden ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/90 text-white">0</span>
+      </button>
+    </div>
+
+    <!-- DASHBOARD VIEW -->
+    <div id="dashboardView" class="space-y-6">
 
     <!-- ALERT BANNER -->
     <div id="alertBanner" class="hidden anim-in glass-card rounded-2xl border border-red-500/30 p-4">
@@ -220,6 +227,102 @@
 
     <p class="text-center text-[11px] text-slate-600">Klik baris item untuk melihat riwayat transaksi &amp; grafik tren. Prediksi habis dihitung dari rata-rata pemakaian 30 hari terakhir.</p>
 
+    </div>
+    <!-- /DASHBOARD VIEW -->
+
+    <!-- SELISIH VIEW -->
+    <div id="selisihView" class="hidden space-y-6">
+
+      <!-- SELISIH KPI ROW -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Total Item Dicek</p>
+            <h3 class="text-2xl font-display font-bold text-white mt-1" id="kpiSelisihTotal">0</h3>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-ink-800 border border-ink-700 text-wheat-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-list-check"></i></div>
+        </div>
+        <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Input Sesuai</p>
+            <h3 class="text-2xl font-display font-bold text-emerald-400 mt-1" id="kpiSelisihSesuai">0</h3>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-circle-check"></i></div>
+        </div>
+        <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Ada Selisih</p>
+            <h3 class="text-2xl font-display font-bold text-red-400 mt-1" id="kpiSelisihMismatch">0</h3>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-red-950/40 border border-red-500/30 text-red-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        </div>
+        <div class="glass-card p-4 rounded-2xl flex items-center justify-between border border-ink-700">
+          <div>
+            <p class="text-xs font-medium text-slate-400">Total Selisih (abs.)</p>
+            <h3 class="text-2xl font-display font-bold text-amber-400 mt-1" id="kpiSelisihAbsTotal">0 <span class="text-xs font-normal text-slate-400">Kg</span></h3>
+          </div>
+          <div class="w-11 h-11 rounded-xl bg-amber-950/30 border border-amber-500/30 text-amber-400 flex items-center justify-center text-lg shrink-0"><i class="fa-solid fa-scale-unbalanced"></i></div>
+        </div>
+      </div>
+
+      <!-- SELISIH ALERT BANNER -->
+      <div id="selisihAlertBanner" class="hidden anim-in glass-card rounded-2xl border border-red-500/30 p-4">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-full bg-red-500/15 border border-red-500/40 text-red-400 flex items-center justify-center shrink-0 alert-pulse">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-semibold text-red-300" id="selisihAlertTitle">Ada item dengan selisih input</p>
+            <p class="text-xs text-slate-400 mt-0.5" id="selisihAlertBody">-</p>
+          </div>
+          <button onclick="dismissSelisihAlertBanner()" class="text-slate-500 hover:text-slate-300 shrink-0"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+
+      <!-- SELISIH FILTERS -->
+      <div class="glass-card p-4 rounded-2xl border border-ink-700 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="relative w-full sm:w-72">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+          <input type="text" id="selisihSearchInput" oninput="handleSelisihFilter()" placeholder="Cari nama bahan baku..."
+            class="w-full bg-ink-900 border border-ink-700 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-wheat-500 transition-all">
+        </div>
+        <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <select id="selisihStatusFilter" onchange="handleSelisihFilter()" class="bg-ink-900 border border-ink-700 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-wheat-500">
+            <option value="ALL">Semua Status</option>
+            <option value="SELISIH">Hanya Ada Selisih</option>
+            <option value="SESUAI">Hanya Sesuai</option>
+          </select>
+          <button onclick="downloadSelisihCSV()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-ink-800/80 hover:bg-ink-700 text-slate-300 border border-ink-700 transition-all flex items-center gap-1.5">
+            <i class="fa-solid fa-file-csv text-sky-400"></i><span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SELISIH TABLE -->
+      <div class="glass-card rounded-2xl overflow-hidden border border-ink-700">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-ink-900/90 text-slate-400 border-b border-ink-700 font-semibold">
+                <th class="p-3.5 pl-5">#</th>
+                <th class="p-3.5">Nama Item</th>
+                <th class="p-3.5 text-right">Stock Awal</th>
+                <th class="p-3.5 text-right">Pengambilan</th>
+                <th class="p-3.5 text-right">Usage</th>
+                <th class="p-3.5 text-right">Selisih</th>
+                <th class="p-3.5 text-center pr-5">Status</th>
+              </tr>
+            </thead>
+            <tbody id="selisihTableBody" class="divide-y divide-ink-800 text-slate-200"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <p class="text-center text-[11px] text-slate-600">Selisih = Stock Awal + Pengambilan &minus; Usage. Selisih 0 berarti input operator sudah sesuai dengan yang dikirim. Selisih selain 0 perlu dicek ulang.</p>
+
+    </div>
+    <!-- /SELISIH VIEW -->
+
   </main>
 </div>
 
@@ -309,6 +412,13 @@
   let lastCriticalIds = new Set();
   let alertBannerDismissed = false;
 
+  // ---------- Cek Selisih Input (report baru) ----------
+  let rawSelisihFromServer = [];
+  let selisihItems = [];
+  let currentView = 'dashboard';
+  let selisihAlertBannerDismissed = false;
+  let lastSelisihMismatchIds = new Set();
+
   document.addEventListener('DOMContentLoaded', () => {
     initCharts();
     autoConnectSheet();
@@ -324,12 +434,20 @@
   function fetchSheetData(url, done) {
     setLiveStatus('Menghubungkan & mengunduh data Google Sheets...', 'connecting');
     fetch(url).then(res => res.json()).then(data => {
-      if (data && data.length > 0) {
-        rawDataFromServer = data;
-        populateCategoryFilter(data);
+      // Backend baru mengembalikan objek { items, selisih, generatedAt }.
+      // Tetap kompatibel kalau suatu saat backend lama (array langsung) masih aktif.
+      const items = Array.isArray(data) ? data : (data && data.items ? data.items : []);
+      const selisih = Array.isArray(data) ? [] : (data && data.selisih ? data.selisih : []);
+
+      rawSelisihFromServer = selisih;
+      renderSelisihTable();
+
+      if (items && items.length > 0) {
+        rawDataFromServer = items;
+        populateCategoryFilter(items);
         handleFilter();
-        setLiveStatus('Tersinkron • ' + data.length + ' item', 'ok');
-        showToast('Berhasil sinkronisasi ' + data.length + ' item dari Google Sheets!', 'success');
+        setLiveStatus('Tersinkron • ' + items.length + ' item stok, ' + selisih.length + ' item dicek', 'ok');
+        showToast('Berhasil sinkronisasi data dari Google Sheets!', 'success');
       } else {
         setLiveStatus('Terhubung, tapi data kosong', 'warn');
       }
@@ -338,6 +456,30 @@
       showToast('Gagal mengambil data dari URL API.', 'error');
       console.error(err);
     }).finally(() => { if (done) done(); });
+  }
+
+  // ---------- View switcher ----------
+  function switchView(view) {
+    currentView = view;
+    const dashboardBtn = document.getElementById('tabDashboardBtn');
+    const selisihBtn = document.getElementById('tabSelisihBtn');
+    const dashboardView = document.getElementById('dashboardView');
+    const selisihView = document.getElementById('selisihView');
+
+    const activeCls = 'flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 bg-wheat-600 text-white';
+    const inactiveCls = 'flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-2 text-slate-400 hover:text-white hover:bg-ink-800';
+
+    if (view === 'selisih') {
+      dashboardView.classList.add('hidden');
+      selisihView.classList.remove('hidden');
+      selisihBtn.className = activeCls;
+      dashboardBtn.className = inactiveCls;
+    } else {
+      selisihView.classList.add('hidden');
+      dashboardView.classList.remove('hidden');
+      dashboardBtn.className = activeCls;
+      selisihBtn.className = inactiveCls;
+    }
   }
 
   function setLiveStatus(text, state) {
@@ -527,6 +669,106 @@
     });
 
     updateDashboard();
+  }
+
+  // ---------- Cek Selisih Input: render, filter, alert, export ----------
+  function handleSelisihFilter() {
+    renderSelisihTable();
+  }
+
+  function renderSelisihTable() {
+    // KPI selalu dihitung dari SELURUH data (tidak terpengaruh filter pencarian)
+    const total = rawSelisihFromServer.length;
+    const mismatches = rawSelisihFromServer.filter(it => it.status === 'SELISIH');
+    const sesuaiCount = total - mismatches.length;
+    const absTotal = mismatches.reduce((sum, it) => sum + Math.abs(it.selisih), 0);
+
+    document.getElementById('kpiSelisihTotal').innerText = total;
+    document.getElementById('kpiSelisihSesuai').innerText = sesuaiCount;
+    document.getElementById('kpiSelisihMismatch').innerText = mismatches.length;
+    document.getElementById('kpiSelisihAbsTotal').innerHTML = absTotal.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' <span class="text-xs font-normal text-slate-400">Kg</span>';
+
+    const badge = document.getElementById('tabSelisihBadge');
+    if (mismatches.length > 0) { badge.classList.remove('hidden'); badge.innerText = mismatches.length; }
+    else { badge.classList.add('hidden'); }
+
+    updateSelisihAlertBanner(mismatches);
+
+    // apply search + status filter for the table rows actually rendered
+    const searchEl = document.getElementById('selisihSearchInput');
+    const statusEl = document.getElementById('selisihStatusFilter');
+    const query = searchEl ? searchEl.value.toLowerCase() : '';
+    const statusFilter = statusEl ? statusEl.value : 'ALL';
+
+    selisihItems = rawSelisihFromServer.filter(it => {
+      const matchQuery = it.name.toLowerCase().includes(query);
+      const matchStatus = (statusFilter === 'ALL') || (it.status === statusFilter);
+      return matchQuery && matchStatus;
+    });
+
+    const tbody = document.getElementById('selisihTableBody');
+    if (!tbody) return;
+
+    if (!selisihItems || selisihItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="p-8 text-center text-slate-500">Tidak ada data pada sheet \'Selisih\', atau tidak ada yang cocok dengan filter.</td></tr>';
+      return;
+    }
+
+    let html = '';
+    selisihItems.forEach((it, index) => {
+      const isMismatch = it.status === 'SELISIH';
+      const rowBg = isMismatch ? 'bg-red-950/10 hover:bg-red-950/20' : 'hover:bg-ink-800/50';
+      const selisihColor = isMismatch ? 'text-red-400' : 'text-emerald-400';
+      const badgeClass = isMismatch ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      const badgeText = isMismatch ? 'SELISIH' : 'SESUAI';
+      const selisihSign = it.selisih > 0 ? '+' : '';
+
+      html += '<tr class="transition-colors ' + rowBg + '">' +
+        '<td class="p-3.5 pl-5 text-slate-500 font-mono">' + (index + 1) + '</td>' +
+        '<td class="p-3.5 font-semibold text-white">' + it.name + '</td>' +
+        '<td class="p-3.5 text-right text-slate-300 font-mono">' + it.stockAwal.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '</td>' +
+        '<td class="p-3.5 text-right text-slate-300 font-mono">' + it.pengambilan.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '</td>' +
+        '<td class="p-3.5 text-right text-slate-300 font-mono">' + it.usage.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '</td>' +
+        '<td class="p-3.5 text-right font-bold font-mono ' + selisihColor + '">' + selisihSign + it.selisih.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + '</td>' +
+        '<td class="p-3.5 text-center pr-5"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ' + badgeClass + '">' + badgeText + '</span></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function updateSelisihAlertBanner(mismatchItems) {
+    const banner = document.getElementById('selisihAlertBanner');
+    if (!banner) return;
+    if (mismatchItems.length === 0 || selisihAlertBannerDismissed) { banner.classList.add('hidden'); return; }
+    banner.classList.remove('hidden');
+    document.getElementById('selisihAlertTitle').innerText = mismatchItems.length + ' item punya selisih input yang perlu dicek';
+    const names = mismatchItems.slice(0, 4).map(i => i.name).join(', ');
+    const extra = mismatchItems.length > 4 ? ' dan ' + (mismatchItems.length - 4) + ' lainnya' : '';
+    document.getElementById('selisihAlertBody').innerText = names + extra + '.';
+
+    const currentIds = new Set(mismatchItems.map(i => i.name));
+    let hasNew = false;
+    currentIds.forEach(id => { if (!lastSelisihMismatchIds.has(id)) hasNew = true; });
+    if (hasNew && soundEnabled) playBeep();
+    lastSelisihMismatchIds = currentIds;
+  }
+
+  function dismissSelisihAlertBanner() {
+    selisihAlertBannerDismissed = true;
+    document.getElementById('selisihAlertBanner').classList.add('hidden');
+  }
+
+  function downloadSelisihCSV() {
+    let csvContent = 'data:text/csv;charset=utf-8,Nama Item,Stock Awal,Pengambilan,Usage,Selisih,Status\n';
+    const rows = (selisihItems && selisihItems.length) ? selisihItems : rawSelisihFromServer;
+    rows.forEach(i => {
+      csvContent += '"' + i.name + '",' + i.stockAwal + ',' + i.pengambilan + ',' + i.usage + ',' + i.selisih + ',"' + i.status + '"\n';
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri); link.setAttribute('download', 'Laporan_Cek_Selisih_Input.csv');
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    showToast('CSV Laporan Selisih berhasil diunduh.', 'success');
   }
 
   // ---------- Item detail modal ----------
@@ -758,16 +1000,5 @@
     });
   }
 </script>
-
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js")
-      .then(reg => console.log("PWA aktif:", reg.scope))
-      .catch(err => console.error("PWA gagal:", err));
-  });
-}
-</script>
-
 </body>
 </html>
