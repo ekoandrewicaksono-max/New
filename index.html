@@ -428,7 +428,9 @@
   function refreshData() {
     const icon = document.getElementById('refreshIcon');
     icon.classList.add('fa-spin');
-    fetchSheetData(GOOGLE_WEB_APP_URL, () => icon.classList.remove('fa-spin'));
+    // tambahkan ?refresh=1 supaya backend melewati cache dan ambil data terbaru dari Sheets
+    const sep = GOOGLE_WEB_APP_URL.indexOf('?') === -1 ? '?' : '&';
+    fetchSheetData(GOOGLE_WEB_APP_URL + sep + 'refresh=1&t=' + Date.now(), () => icon.classList.remove('fa-spin'));
   }
 
   function fetchSheetData(url, done) {
